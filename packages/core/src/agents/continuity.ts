@@ -5,6 +5,7 @@ import type { FanficMode } from "../models/book.js";
 import { readGenreProfile, readBookRules } from "./rules-reader.js";
 import { getFanficDimensionConfig, FANFIC_DIMENSIONS } from "./fanfic-dimensions.js";
 import { readFile, readdir } from "node:fs/promises";
+import { filterHooks, filterSummaries, filterSubplots, filterEmotionalArcs, filterCharacterMatrix } from "../utils/context-filter.js";
 import { join } from "node:path";
 
 export interface AuditResult {
@@ -302,17 +303,25 @@ ${dimList}
       ? `\n## 资源账本\n${ledger}`
       : "";
 
-    const subplotBlock = subplotBoard !== "(文件不存在)"
-      ? `\n## 支线进度板\n${subplotBoard}\n`
+    // Smart context filtering for auditor — same logic as writer
+    const bookRulesForFilter = parsedRules?.rules ?? null;
+    const filteredSubplots = filterSubplots(subplotBoard);
+    const filteredArcs = filterEmotionalArcs(emotionalArcs, chapterNumber);
+    const filteredMatrix = filterCharacterMatrix(characterMatrix, volumeOutline, bookRulesForFilter?.protagonist?.name);
+    const filteredSummaries = filterSummaries(chapterSummaries, chapterNumber);
+    const filteredHooks = filterHooks(hooks);
+
+    const subplotBlock = filteredSubplots !== "(文件不存在)"
+      ? `\n## 支线进度板\n${filteredSubplots}\n`
       : "";
-    const emotionalBlock = emotionalArcs !== "(文件不存在)"
-      ? `\n## 情感弧线\n${emotionalArcs}\n`
+    const emotionalBlock = filteredArcs !== "(文件不存在)"
+      ? `\n## 情感弧线\n${filteredArcs}\n`
       : "";
-    const matrixBlock = characterMatrix !== "(文件不存在)"
-      ? `\n## 角色交互矩阵\n${characterMatrix}\n`
+    const matrixBlock = filteredMatrix !== "(文件不存在)"
+      ? `\n## 角色交互矩阵\n${filteredMatrix}\n`
       : "";
-    const summariesBlock = chapterSummaries !== "(文件不存在)"
-      ? `\n## 章节摘要（用于节奏检查）\n${chapterSummaries}\n`
+    const summariesBlock = filteredSummaries !== "(文件不存在)"
+      ? `\n## 章节摘要（用于节奏检查）\n${filteredSummaries}\n`
       : "";
 
     const canonBlock = hasParentCanon
@@ -337,7 +346,7 @@ ${dimList}
 ${currentState}
 ${ledgerBlock}
 ## 伏笔池
-${hooks}
+${filteredHooks}
 ${subplotBlock}${emotionalBlock}${matrixBlock}${summariesBlock}${canonBlock}${fanficCanonBlock}${outlineBlock}${prevChapterBlock}
 ## 文风指南
 ${styleGuide}

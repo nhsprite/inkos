@@ -8,6 +8,7 @@ import { parseSettlementOutput } from "./settler-parser.js";
 import { readGenreProfile, readBookRules } from "./rules-reader.js";
 import { validatePostWrite, type PostWriteViolation } from "./post-write-validator.js";
 import { analyzeAITells } from "./ai-tells.js";
+import { filterHooks, filterSummaries, filterSubplots, filterEmotionalArcs, filterCharacterMatrix } from "../utils/context-filter.js";
 import { parseCreativeOutput } from "./writer-parser.js";
 import { readFile, writeFile, mkdir, readdir } from "node:fs/promises";
 import { join } from "node:path";
@@ -107,20 +108,27 @@ export class WriterAgent extends BaseAgent {
       chapterNumber, "creative", fanficContext, resolvedLanguage,
     );
 
+    // Smart context filtering: inject only relevant parts of truth files
+    const filteredHooks = filterHooks(hooks);
+    const filteredSummaries = filterSummaries(chapterSummaries, chapterNumber);
+    const filteredSubplots = filterSubplots(subplotBoard);
+    const filteredArcs = filterEmotionalArcs(emotionalArcs, chapterNumber);
+    const filteredMatrix = filterCharacterMatrix(characterMatrix, volumeOutline, bookRules?.protagonist?.name);
+
     const creativeUserPrompt = this.buildUserPrompt({
       chapterNumber,
       storyBible,
       volumeOutline,
       currentState,
       ledger: genreProfile.numericalSystem ? ledger : "",
-      hooks,
+      hooks: filteredHooks,
       recentChapters,
       wordCount: input.wordCountOverride ?? book.chapterWordCount,
       externalContext: input.externalContext,
-      chapterSummaries,
-      subplotBoard,
-      emotionalArcs,
-      characterMatrix,
+      chapterSummaries: filteredSummaries,
+      subplotBoard: filteredSubplots,
+      emotionalArcs: filteredArcs,
+      characterMatrix: filteredMatrix,
       dialogueFingerprints,
       relevantSummaries,
       parentCanon: hasParentCanon ? parentCanon : undefined,
