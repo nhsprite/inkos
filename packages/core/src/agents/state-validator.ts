@@ -51,14 +51,19 @@ Given the chapter text and the CHANGES made to truth files (state card + hooks p
 4. Hook anomaly — a hook disappeared without being marked resolved, or a new hook has no basis in the chapter
 5. Retroactive edit — truth file change implies something happened in a PREVIOUS chapter, not the current one
 
-Output JSON:
+Output format: respond with ONLY a valid JSON object, no markdown fences, no text before or after.
+
+Required JSON structure:
 {
   "warnings": [
-    { "category": "missing_state_change", "description": "..." },
-    { "category": "unsupported_change", "description": "..." }
+    { "category": "<string>", "description": "<string>" }
   ],
-  "passed": true/false
+  "passed": <boolean>
 }
+
+Examples:
+{"warnings": [], "passed": true}
+{"warnings": [{"category": "missing_state_change", "description": "..."}], "passed": false}
 
 passed = true means no serious contradictions found. Minor observations are still reported as warnings.
 If there are no issues at all, return {"warnings": [], "passed": true}.
@@ -120,10 +125,14 @@ ${chapterContent.slice(0, 6000)}`;
       throw new Error("LLM returned empty response");
     }
 
+    // Strip markdown code fences before JSON extraction to handle
+    // models that wrap JSON in ```json ... ``` or plain ``` ... ```
+    const clean = stripCodeFence(trimmed);
+
     const parsed = extractFirstValidJsonObject<{
       warnings?: Array<{ category?: string; description?: string }>;
       passed?: boolean;
-    }>(trimmed);
+    }>(clean);
     if (!parsed) {
       throw new Error("State validator returned invalid JSON");
     }
@@ -222,4 +231,10 @@ function extractBalancedJsonObject(text: string, start: number): string | null {
   }
 
   return null;
+}
+
+function stripCodeFence(value: string): string {
+  const trimmed = value.trim();
+  const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  return fenced?.[1]?.trim() ?? trimmed;
 }
