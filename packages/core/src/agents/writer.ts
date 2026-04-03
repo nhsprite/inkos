@@ -3,10 +3,12 @@ import type { BookConfig } from "../models/book.js";
 import type { GenreProfile } from "../models/genre-profile.js";
 import type { BookRules } from "../models/book-rules.js";
 import { buildWriterSystemPrompt, type FanficContext } from "./writer-prompts.js";
+import { ReviserAgent, type ReviseMode, type ReviseOutput } from "./reviser.js";
 import { buildSettlerSystemPrompt, buildSettlerUserPrompt } from "./settler-prompts.js";
 import { buildObserverSystemPrompt, buildObserverUserPrompt } from "./observer-prompts.js";
 import { parseSettlerDeltaOutput } from "./settler-delta-parser.js";
 import { parseSettlementOutput } from "./settler-parser.js";
+import type { AuditIssue } from "./continuity.js";
 import { readGenreProfile, readBookRules } from "./rules-reader.js";
 import {
   detectCrossChapterRepetition,
@@ -69,6 +71,21 @@ export interface TokenUsage {
   readonly totalTokens: number;
 }
 
+export type WriterRepairMode = ReviseMode;
+
+export interface RepairChapterInput {
+  readonly bookDir: string;
+  readonly chapterContent: string;
+  readonly chapterNumber: number;
+  readonly issues: ReadonlyArray<AuditIssue>;
+  readonly mode: WriterRepairMode;
+  readonly genre?: string;
+  readonly chapterIntent?: string;
+  readonly contextPackage?: ContextPackage;
+  readonly ruleStack?: RuleStack;
+  readonly lengthSpec?: LengthSpec;
+}
+
 export interface WriteChapterOutput {
   readonly chapterNumber: number;
   readonly title: string;
@@ -112,6 +129,24 @@ export class WriterAgent extends BaseAgent {
 
   private logWarn(language: "zh" | "en", messages: { zh: string; en: string }): void {
     this.ctx.logger?.warn(this.localize(language, messages));
+  }
+
+  async repairChapter(input: RepairChapterInput): Promise<ReviseOutput> {
+    const reviser = new ReviserAgent(this.ctx);
+    return reviser.reviseChapter(
+      input.bookDir,
+      input.chapterContent,
+      input.chapterNumber,
+      input.issues,
+      input.mode,
+      input.genre,
+      {
+        chapterIntent: input.chapterIntent,
+        contextPackage: input.contextPackage,
+        ruleStack: input.ruleStack,
+        lengthSpec: input.lengthSpec,
+      },
+    );
   }
 
   async writeChapter(input: WriteChapterInput): Promise<WriteChapterOutput> {

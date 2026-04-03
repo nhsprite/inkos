@@ -3,7 +3,9 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { WriterAgent } from "../agents/writer.js";
+import { ReviserAgent } from "../agents/reviser.js";
 import { buildLengthSpec } from "../utils/length-metrics.js";
+import type { AuditIssue } from "../agents/continuity.js";
 
 const ZERO_USAGE = {
   promptTokens: 0,
@@ -236,6 +238,68 @@ describe("WriterAgent", () => {
       expect(settlePrompt).not.toContain("old-seal");
       expect(settlePrompt).not.toContain("Guildmaster Ren");
       expect(settlePrompt).not.toContain("| Lin Yue | 40 | 麻木 |");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("routes chapter repair through the writer-side repair interface", async () => {
+    const root = await mkdtemp(join(tmpdir(), "inkos-writer-repair-test-"));
+    const agent = new WriterAgent({
+      client: {
+        provider: "openai",
+        apiFormat: "chat",
+        stream: false,
+        defaults: {
+          temperature: 0.7,
+          maxTokens: 4096,
+          thinkingBudget: 0, maxTokensCap: null,
+          extra: {},
+        },
+      },
+      model: "test-model",
+      projectRoot: root,
+    });
+    const issues: AuditIssue[] = [{
+      severity: "critical",
+      category: "continuity",
+      description: "repair the broken scene transition",
+      suggestion: "rewrite the handoff",
+    }];
+    const reviseChapter = vi.spyOn(ReviserAgent.prototype, "reviseChapter")
+      .mockResolvedValue({
+        revisedContent: "fixed chapter",
+        wordCount: 12,
+        fixedIssues: ["fixed transition"],
+        updatedState: "state",
+        updatedLedger: "ledger",
+        updatedHooks: "hooks",
+        tokenUsage: ZERO_USAGE,
+      });
+
+    try {
+      const result = await agent.repairChapter({
+        bookDir: "/tmp/book",
+        chapterContent: "broken chapter",
+        chapterNumber: 7,
+        issues,
+        mode: "spot-fix",
+        genre: "xuanhuan",
+        lengthSpec: buildLengthSpec(2200, "zh"),
+      });
+
+      expect(reviseChapter).toHaveBeenCalledWith(
+        "/tmp/book",
+        "broken chapter",
+        7,
+        issues,
+        "spot-fix",
+        "xuanhuan",
+        expect.objectContaining({
+          lengthSpec: expect.objectContaining({ target: 2200 }),
+        }),
+      );
+      expect(result.revisedContent).toBe("fixed chapter");
     } finally {
       await rm(root, { recursive: true, force: true });
     }

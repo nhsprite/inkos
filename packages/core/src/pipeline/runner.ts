@@ -13,7 +13,7 @@ import { WriterAgent, type WriteChapterInput, type WriteChapterOutput } from "..
 import { LengthNormalizerAgent } from "../agents/length-normalizer.js";
 import { ChapterAnalyzerAgent } from "../agents/chapter-analyzer.js";
 import { ContinuityAuditor } from "../agents/continuity.js";
-import { ReviserAgent, DEFAULT_REVISE_MODE, type ReviseMode } from "../agents/reviser.js";
+import { DEFAULT_REVISE_MODE, type ReviseMode } from "../agents/reviser.js";
 import { StateValidatorAgent, type ValidationResult, type ValidationWarning } from "../agents/state-validator.js";
 import { RadarAgent } from "../agents/radar.js";
 import type { RadarSource } from "../agents/radar-source.js";
@@ -890,27 +890,23 @@ export class PipelineRunner {
         lengthLanguage,
       );
 
-      const reviser = new ReviserAgent(this.agentCtxFor("reviser", bookId));
+      const writer = new WriterAgent(this.agentCtxFor("writer", bookId));
       this.logStage(stageLanguage, {
         zh: `修订第${targetChapter}章`,
         en: `revising chapter ${targetChapter}`,
       });
-      const reviseOutput = await reviser.reviseChapter(
+      const reviseOutput = await writer.repairChapter({
         bookDir,
-        content,
-        targetChapter,
-        preRevision.auditResult.issues,
+        chapterContent: content,
+        chapterNumber: targetChapter,
+        issues: preRevision.auditResult.issues,
         mode,
-        book.genre,
-        reviseControlInput
-          ? {
-              chapterIntent: reviseControlInput.plan.intentMarkdown,
-              contextPackage: reviseControlInput.composed.contextPackage,
-              ruleStack: reviseControlInput.composed.ruleStack,
-              lengthSpec,
-            }
-          : { lengthSpec },
-      );
+        genre: book.genre,
+        chapterIntent: reviseControlInput?.plan.intentMarkdown,
+        contextPackage: reviseControlInput?.composed.contextPackage,
+        ruleStack: reviseControlInput?.composed.ruleStack,
+        lengthSpec,
+      });
 
       if (reviseOutput.revisedContent.length === 0) {
         throw new Error("Reviser returned empty content");
@@ -1201,7 +1197,18 @@ export class PipelineRunner {
       reducedControlInput,
       lengthSpec,
       initialUsage: totalUsage,
-      createReviser: () => new ReviserAgent(this.agentCtxFor("reviser", bookId)),
+      repairChapter: (chapterContent, issues, mode) => writer.repairChapter({
+        bookDir,
+        chapterContent,
+        chapterNumber,
+        issues,
+        mode,
+        genre: book.genre,
+        chapterIntent: reducedControlInput?.chapterIntent,
+        contextPackage: reducedControlInput?.contextPackage,
+        ruleStack: reducedControlInput?.ruleStack,
+        lengthSpec,
+      }),
       auditor,
       normalizeDraftLengthIfNeeded: (chapterContent) => this.normalizeDraftLengthIfNeeded({
         bookId,

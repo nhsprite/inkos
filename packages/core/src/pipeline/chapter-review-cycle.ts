@@ -35,22 +35,11 @@ export async function runChapterReviewCycle(params: {
   readonly reducedControlInput?: ChapterReviewCycleControlInput;
   readonly lengthSpec: LengthSpec;
   readonly initialUsage: ChapterReviewCycleUsage;
-  readonly createReviser: () => {
-    reviseChapter: (
-      bookDir: string,
-      chapterContent: string,
-      chapterNumber: number,
-      issues: ReadonlyArray<AuditIssue>,
-      mode: "spot-fix" | "rewrite",
-      genre?: string,
-      options?: {
-        chapterIntent?: string;
-        contextPackage?: ContextPackage;
-        ruleStack?: RuleStack;
-        lengthSpec?: LengthSpec;
-      },
-    ) => Promise<ReviseOutput>;
-  };
+  readonly repairChapter: (
+    chapterContent: string,
+    issues: ReadonlyArray<AuditIssue>,
+    mode: "spot-fix" | "rewrite",
+  ) => Promise<ReviseOutput>;
   readonly auditor: {
     auditChapter: (
       bookDir: string,
@@ -122,24 +111,16 @@ export async function runChapterReviewCycle(params: {
       zh: `检测到 ${params.initialOutput.postWriteErrors.length} 个后写错误，审计前触发 spot-fix 修补`,
       en: `${params.initialOutput.postWriteErrors.length} post-write errors detected, triggering spot-fix before audit`,
     });
-    const reviser = params.createReviser();
     const spotFixIssues = params.initialOutput.postWriteErrors.map((violation) => ({
       severity: "critical" as const,
       category: violation.rule,
       description: violation.description,
       suggestion: violation.suggestion,
     }));
-    const fixResult = await reviser.reviseChapter(
-      params.bookDir,
+    const fixResult = await params.repairChapter(
       finalContent,
-      params.chapterNumber,
       spotFixIssues,
       "spot-fix",
-      params.book.genre,
-      {
-        ...params.reducedControlInput,
-        lengthSpec: params.lengthSpec,
-      },
     );
     totalUsage = params.addUsage(totalUsage, fixResult.tokenUsage);
     if (fixResult.revisedContent.length > 0) {
@@ -165,23 +146,15 @@ export async function runChapterReviewCycle(params: {
       break;
     }
 
-    const reviser = params.createReviser();
     params.logStage(
       repairMode === "spot-fix"
         ? { zh: "自动修复当前章的局部问题", en: "auto-fixing local issues in the current chapter" }
         : { zh: "当前章局部修复未通过，升级为整章改写", en: "local repair still failed, escalating to full chapter rewrite" },
     );
-    const reviseOutput = await reviser.reviseChapter(
-      params.bookDir,
+    const reviseOutput = await params.repairChapter(
       finalContent,
-      params.chapterNumber,
       auditResult.issues,
       repairMode,
-      params.book.genre,
-      {
-        ...params.reducedControlInput,
-        lengthSpec: params.lengthSpec,
-      },
     );
     totalUsage = params.addUsage(totalUsage, reviseOutput.tokenUsage);
 

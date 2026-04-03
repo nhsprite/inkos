@@ -66,7 +66,10 @@ describe("runChapterReviewCycle", () => {
       lengthSpec: LENGTH_SPEC,
       reducedControlInput: undefined,
       initialUsage: ZERO_USAGE,
-      createReviser: () => ({ reviseChapter }),
+      repairChapter: (chapterContent, issues, mode) =>
+        reviseChapter("/tmp/book", chapterContent, 1, issues, mode, "xuanhuan", {
+          lengthSpec: LENGTH_SPEC,
+        }),
       auditor: { auditChapter },
       normalizeDraftLengthIfNeeded,
       assertChapterContentNotEmpty: () => undefined,
@@ -149,7 +152,10 @@ describe("runChapterReviewCycle", () => {
       lengthSpec: LENGTH_SPEC,
       reducedControlInput: undefined,
       initialUsage: ZERO_USAGE,
-      createReviser: () => ({ reviseChapter }),
+      repairChapter: (chapterContent, issues, mode) =>
+        reviseChapter("/tmp/book", chapterContent, 1, issues, mode, "xuanhuan", {
+          lengthSpec: LENGTH_SPEC,
+        }),
       auditor: { auditChapter },
       normalizeDraftLengthIfNeeded,
       assertChapterContentNotEmpty: () => undefined,
@@ -243,7 +249,10 @@ describe("runChapterReviewCycle", () => {
       lengthSpec: LENGTH_SPEC,
       reducedControlInput: undefined,
       initialUsage: ZERO_USAGE,
-      createReviser: () => ({ reviseChapter }),
+      repairChapter: (chapterContent, issues, mode) =>
+        reviseChapter("/tmp/book", chapterContent, 1, issues, mode, "xuanhuan", {
+          lengthSpec: LENGTH_SPEC,
+        }),
       auditor: { auditChapter },
       normalizeDraftLengthIfNeeded,
       assertChapterContentNotEmpty: () => undefined,
